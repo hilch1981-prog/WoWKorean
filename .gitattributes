@@ -1,0 +1,3 @@
+* text=auto eol=lf
+*.ttf binary
+assets/OFL.txt whitespace=-blank-at-eol
