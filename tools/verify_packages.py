@@ -23,7 +23,8 @@ def check_addon(target, folder, path, old_lua):
         assert toc[0] == f"## Interface: {interface}"
         assert f"## Version: {version}" in toc
         loads = [line.replace("\\", "/") for line in toc if line and not line.startswith("#")]
-        assert loads[0] == "Config.lua" and loads[-1] == "Core.lua"
+        assert loads[0] == "Config.lua"
+        assert loads[-1] == ("CoAWorld.lua" if target == "coa" else "Core.lua")
         assert len(loads) == len(set(loads))
         assert {name for name in names if name.endswith(".lua")} == {f"{folder}/{load}" for load in loads}
         assert archive.read(f"{folder}/Fonts/{FONT}") == (ROOT / "assets" / FONT).read_bytes()
@@ -67,11 +68,20 @@ def main():
                     args.lua50.resolve() if args.lua50 else None)
     if "coa" not in targets:
         return
-    patch = args.archive_dir / f"WoWKorean_CoA_FontPatch_v{VERSION}.zip"
+    _, _, _, _, client, version = TARGETS["coa"]
+    native = args.archive_dir / f"WoWKorean_CoA_{client}_ClientPatch_v{version}.zip"
+    patch = native if native.is_file() else args.archive_dir / f"WoWKorean_CoA_FontPatch_v{VERSION}.zip"
     with ZipFile(patch) as archive:
         assert archive.testzip() is None
         fonts = [name for name in archive.namelist() if re.fullmatch(r"Fonts/[A-Z_]+\.TTF", name)]
-        assert len(fonts) == 4 and len(archive.namelist()) == 6
+        expected = {"OFL.txt", "README.md", *fonts}
+        if patch == native:
+            expected |= {"Data/patch-ZZZY.MPQ", "coverage.json"}
+            with archive.open("Data/patch-ZZZY.MPQ") as mpq:
+                assert mpq.read(4) == b"MPQ\x1a"
+            counts = json.loads(archive.read("coverage.json"))
+            assert counts["spell_descriptions"] > 0 and counts["character_display_names"] > 0
+        assert len(fonts) == 4 and set(archive.namelist()) == expected
         assert all(archive.read(name) == (ROOT / "assets" / FONT).read_bytes() for name in fonts)
         assert archive.read("OFL.txt") == (ROOT / "assets/OFL.txt").read_bytes()
     print(hashlib.sha256(patch.read_bytes()).hexdigest(), patch.name)

@@ -1,0 +1,24 @@
+{
+  "spell_names": 206892,
+  "spell_ranks": 2114,
+  "spell_descriptions": 151652,
+  "spell_aura_descriptions": 77390,
+  "untranslated_client_slots": {
+    "name": 1724,
+    "rank": 23426,
+    "description": 6332,
+    "aura_description": 953
+  },
+  "character_lore_entries": 62,
+  "character_display_names": 106,
+  "spell_fields_reused": {
+    "matching_client_locales": 56814,
+    "existing_addon": 130049
+  },
+  "untranslated_unique_spell_texts": {
+    "name": 1010,
+    "rank": 301,
+    "description": 3698,
+    "aura_description": 634
+  }
+}

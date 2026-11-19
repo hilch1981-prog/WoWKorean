@@ -42,11 +42,12 @@ local function Expand(text, korean, localizedRace, localizedClass)
     local class, classToken = UnitClass("player")
     local englishClass = classToken and (classes[classToken] or
         string.sub(classToken, 1, 1) .. string.lower(string.sub(classToken, 2)))
+    local characterNames = addon.characterNames
     local values = {
         b = "\n", n = UnitName("player"),
-        r = korean and (koRaces[raceToken] or race) or
+        r = korean and ((characterNames and characterNames[race]) or koRaces[raceToken] or race) or
             localizedRace and race or races[raceToken] or raceToken or race,
-        c = korean and (koClasses[classToken] or class) or
+        c = korean and ((characterNames and characterNames[class]) or koClasses[classToken] or class) or
             localizedClass and class or englishClass or class,
     }
     text = string.gsub(text, "%$[gG]([^:;]*):([^;]*);", function(male, female)
@@ -460,6 +461,14 @@ local function UpdateText()
     if Visible(MerchantFrame) then UnitLabel(MerchantNameText, "npc") end
     TooltipText(GameTooltip)
     TooltipText(ItemRefTooltip)
+    if addon.updateWorldText then addon.updateWorldText() end
+end
+
+if addon.worldText then
+    addon.displayText = Display
+    addon.textKey = LookupKey
+    addon.expandText = Expand
+    addon.isVisible = Visible
 end
 
 local elapsed = 0

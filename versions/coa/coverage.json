@@ -1,8 +1,40 @@
 {
   "target": "coa",
-  "quests": 9411,
-  "units": 26917,
-  "items": 43152,
+  "quests": 10410,
+  "units": 32644,
+  "items": 46052,
   "spells": 0,
-  "quest_fields": 40254
+  "quest_fields": 44075,
+  "reference_quest_rows": 10497,
+  "reference_fields_matched": {
+    "quests_with_all_display_fields": 10408,
+    "quests_changed_fields": 3916,
+    "quests_with_changed_sources": 1042,
+    "units_changed_fields": 6408,
+    "items_changed_fields": 836419
+  },
+  "additional_world_strings": {
+    "objective": 307,
+    "gossipConfirmation": 7,
+    "greeting": 1444,
+    "questGreeting": 4,
+    "option": 822,
+    "page": 156,
+    "object": 923,
+    "speech": 56744
+  },
+  "untranslated_world_strings": {
+    "greeting": 41,
+    "option": 1,
+    "page": 19,
+    "object": 438,
+    "speech": 1034
+  },
+  "untranslated_changed_fields": {
+    "units": 44,
+    "items": 9769
+  },
+  "spell_names": 88817,
+  "item_names_by_source": 198107,
+  "item_descriptions_by_source": 16877
 }

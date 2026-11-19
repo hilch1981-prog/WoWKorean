@@ -204,7 +204,15 @@ function Verify()
     TestItemLink = "|Hitem:650000:0:0|h[Worn Shortsword]|h"
     Show(GameTooltipTextLeft1, TestItemName)
     Frame()
-    assert(GameTooltipTextLeft1.value == TestItemName, "unknown item ID")
+    if addon.worldText then
+        assert(GameTooltipTextLeft1.value == addon.items[25].title[2], "CoA scaled item label")
+        TestItemName = "Fixture Modified Shortsword"
+        Show(GameTooltipTextLeft1, TestItemName)
+        Frame()
+        assert(GameTooltipTextLeft1.value == TestItemName, "CoA modified item label")
+    else
+        assert(GameTooltipTextLeft1.value == TestItemName, "unknown item ID")
+    end
 
     local spellCount = 0
     for _ in pairs(addon.spells) do spellCount = spellCount + 1 end
@@ -236,6 +244,25 @@ function Verify()
         GameTooltip:SetUnitAura("target", 1, "HELPFUL")
         assert(GameTooltipTextLeft1.value == "회복", "MoP aura name")
         assert(GameTooltipTextLeft2.value == "3초마다 1,174의 생명력 회복", "MoP aura periodic effect")
+    end
+    if TEST_INTERFACE == 30300 and addon.worldText then
+        GossipGreetingText = Widget()
+        QuestInfoObjective1 = Widget()
+        local greeting = "The Light guide you."
+        addon.worldText.greeting = {
+            values = {[addon.textKey(greeting)] = "빛이 그대를 인도하기를."},
+            templates = {},
+        }
+        Show(GossipGreetingText, greeting)
+        Show(QuestInfoObjective1, "Worn Shortsword: 2/3")
+        TestItemName, TestItemLink, TestUnitName = nil, nil, nil
+        TestSpellName, TestSpellID = "Fireball", 133
+        Show(GameTooltipTextLeft1, "Fireball")
+        Frame()
+        assert(GossipGreetingText.value == "빛이 그대를 인도하기를.", "CoA gossip")
+        assert(GameTooltipTextLeft1.value == "화염구", "CoA original spell identifier remains available")
+        assert(QuestInfoObjective1.value == addon.items[25].title[2] .. ": 2/3", "CoA objective count")
+        assert(TestSpellName == "Fireball")
     end
     print("PASS: " .. addon.folder .. " (" .. _VERSION .. ")")
 end
