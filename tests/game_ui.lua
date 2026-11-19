@@ -45,6 +45,22 @@ function GameTooltip:GetName() return "GameTooltip" end
 function GameTooltip:NumLines() return 2 end
 function GameTooltip:GetUnit() return TestUnitName, "target" end
 function GameTooltip:GetItem() return TestItemName, TestItemLink end
+function GameTooltip:GetSpell() return TestSpellName, nil, TestSpellID end
+function GameTooltip:SetUnitAura()
+    self.shown = true
+    GameTooltipTextLeft1.value = TestAuraName
+    GameTooltipTextLeft2.value = TestAuraText
+end
+function UnitAura()
+    return TestAuraName, nil, nil, nil, nil, nil, nil, nil, nil, nil, TestAuraID
+end
+function hooksecurefunc(object, method, after)
+    local original = object[method]
+    object[method] = function(self, unit, index, filter)
+        original(self, unit, index, filter)
+        after(self, unit, index, filter)
+    end
+end
 function GetTitleText() return TestTitle end
 function GetQuestID() return TestID end
 function GetQuestText() return TestDescription end
@@ -189,5 +205,37 @@ function Verify()
     Show(GameTooltipTextLeft1, TestItemName)
     Frame()
     assert(GameTooltipTextLeft1.value == TestItemName, "unknown item ID")
+
+    local spellCount = 0
+    for _ in pairs(addon.spells) do spellCount = spellCount + 1 end
+    assert(spellCount == EXPECTED_SPELLS)
+    if TEST_INTERFACE == 50400 then
+        TestItemName, TestItemLink = nil, nil
+        TestSpellName, TestSpellID = "Fireball", 133
+        Show(GameTooltipTextLeft1, TestSpellName)
+        Show(GameTooltipTextLeft2, "Hurls a fiery ball that causes 1,234.5 Fire damage.")
+        Frame()
+        assert(GameTooltipTextLeft1.value == "화염구", "MoP spell name")
+        assert(GameTooltipTextLeft2.value == "적에게 불타는 구체를 날려 1,234.5의 화염 피해를 입힙니다.", "MoP spell damage")
+        Show(GameTooltipTextLeft2, "Hurls a fiery ball that causes 1,234 to 1,456 Fire damage.")
+        Frame()
+        assert(GameTooltipTextLeft2.value == "적에게 불타는 구체를 날려 1,234~1,456의 화염 피해를 입힙니다.", "MoP spell damage range")
+        Show(GameTooltipTextLeft2, "Hurls two fiery balls that cause 1,234.5 Shadow damage.")
+        Frame()
+        assert(GameTooltipTextLeft2.value == "Hurls two fiery balls that cause 1,234.5 Shadow damage.", "changed spell description")
+
+        TestSpellName, TestSpellID = "Frostbolt", 116
+        Show(GameTooltipTextLeft1, TestSpellName)
+        Show(GameTooltipTextLeft2, "Launches a bolt of frost at the enemy, causing 152 Frost damage and slowing movement speed by 50% for 8 sec.")
+        Frame()
+        assert(GameTooltipTextLeft2.value == "적에게 얼음 화살을 날려 152의 냉기 피해를 입히고 8초 동안 이동 속도를 50%만큼 감소시킵니다.", "MoP reordered duration and percentage")
+
+        TestSpellName, TestSpellID = nil, nil
+        TestAuraName, TestAuraID = "Rejuvenation", 774
+        TestAuraText = "Heals 1,174 damage every 3 seconds."
+        GameTooltip:SetUnitAura("target", 1, "HELPFUL")
+        assert(GameTooltipTextLeft1.value == "회복", "MoP aura name")
+        assert(GameTooltipTextLeft2.value == "3초마다 1,174의 생명력 회복", "MoP aura periodic effect")
+    end
     print("PASS: " .. addon.folder .. " (" .. _VERSION .. ")")
 end

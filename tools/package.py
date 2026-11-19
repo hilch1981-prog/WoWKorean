@@ -8,9 +8,9 @@ from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "0.1.0"
 TARGETS = {
-    "mop": ("MoP", "판다리아 5.4.8", 50400, "18414", "5.4.8"),
-    "turtle": ("Turtle", "터틀 와우 1.18.1", 11200, "", "1.18.1"),
-    "coa": ("CoA", "CoA 3.3.5a", 30300, "", "3.3.5a"),
+    "mop": ("MoP", "판다리아 5.4.8", 50400, "18414", "5.4.8", "0.1.1"),
+    "turtle": ("Turtle", "터틀 와우 1.18.1", 11200, "", "1.18.1", VERSION),
+    "coa": ("CoA", "CoA 3.3.5a", 30300, "", "3.3.5a", VERSION),
 }
 FONT = "NanumGothic-Regular.ttf"
 
@@ -26,12 +26,12 @@ def zip_files(path, members):
 
 
 def build(target, output):
-    short, label, interface, build_number, client = TARGETS[target]
+    short, label, interface, build_number, client, version = TARGETS[target]
     edition = ROOT / "versions" / target
     folder = "WoWKorean_" + short
     config = f'''local _, build, _, interface = GetBuildInfo()
 WoWKoreanClient = {{
-    folder = "{folder}", label = "{label}", version = "{VERSION}", interface = {interface},
+    folder = "{folder}", label = "{label}", version = "{version}", interface = {interface},
     active = (tonumber(interface) == {interface}{" or interface == nil" if target == "turtle" else ""})
         and ("{build_number}" == "" or tostring(build) == "{build_number}"),
     useFont = GetLocale() ~= "koKR",
@@ -44,7 +44,7 @@ WoWKoreanClient = {{
     loads = [f"data\\{file.name}" for file in parts]
     toc = "\r\n".join([
         f"## Interface: {interface}", f"## Title: 와우 한글화 · {label}",
-        "## Notes: 기본 퀘스트와 툴팁의 한국어 표시", f"## Version: {VERSION}",
+        "## Notes: 기본 퀘스트와 툴팁의 한국어 표시", f"## Version: {version}",
         "## Author: 취미연구가", "## DefaultState: enabled",
         "Config.lua", *loads, "Core.lua", "",
     ])
@@ -61,7 +61,7 @@ WoWKoreanClient = {{
     }
     if target == "coa":
         members[f"{folder}/FONT-PATCH.md"] = edition / "FONT-PATCH.md"
-    return zip_files(output / f"{folder}_{client}_v{VERSION}.zip", members)
+    return zip_files(output / f"{folder}_{client}_v{version}.zip", members)
 
 
 def coa_fonts(output):

@@ -346,19 +346,57 @@ local function UnitLabel(widget, unit)
     if row then Display(widget, original, SelectText(row.title, original)) end
 end
 
-local function TooltipLabel(tooltip, row, original, allowDescription)
+local durationUnits = {
+    sec = "초", secs = "초", second = "초", seconds = "초",
+    min = "분", mins = "분", minute = "분", minutes = "분",
+    hr = "시간", hrs = "시간", hour = "시간", hours = "시간",
+    day = "일", days = "일",
+}
+local renderedNumber = "[%+%-]?%d[%d,.]*"
+local rangeEnd = "(" .. renderedNumber .. ")$"
+local rangeStart = "^(" .. renderedNumber .. ")"
+
+local function TooltipDescription(pair, original)
+    if not pair[3] then return SelectText(pair, original) end
+    if not original or original == "" then return end
+    local values = {string.match(Normalize(original), pair[1])}
+    if not values[1] then return end
+    local durations, repeated = pair[3], pair[4]
+    for slot, first in ipairs(repeated) do
+        if values[slot] ~= values[first] then return end
+    end
+    for slot, duration in ipairs(durations) do
+        if duration == 1 then
+            local number, unit = string.match(values[slot], "^(%S+) (%a+)$")
+            if not durationUnits[unit] then return end
+            values[slot] = number .. durationUnits[unit]
+        elseif not string.match(values[slot], "^" .. renderedNumber .. "$") then
+            local value = string.gsub(values[slot], "–", "-")
+            local low, high = string.match(value, rangeStart .. " to " .. rangeEnd)
+            if not low then low, high = string.match(value, rangeStart .. " *%- *" .. rangeEnd) end
+            if not low then return end
+            values[slot] = low .. "~" .. high
+        end
+    end
+    return (string.gsub(pair[2], "\031(%d+)\031", function(slot)
+        return values[tonumber(slot)]
+    end))
+end
+
+local function TooltipLabel(tooltip, row, original, field)
     if not row or not original then return end
     local name = SelectText(row.title, original)
     if not name then return end
     local prefix = tooltip:GetName() .. "TextLeft"
     Display(G[prefix .. "1"], original, name)
-    if not allowDescription or not row.description then return end
+    local description = field and row[field]
+    if not description then return end
     for index = 2, tooltip:NumLines() do
         local line = G[prefix .. index]
         local text = line and line:GetText()
-        local value = SelectText(row.description, text)
+        local value = TooltipDescription(description, text)
         if not value and text and string.sub(text, 1, 1) == '"' and string.sub(text, -1) == '"' then
-            value = SelectText(row.description, string.sub(text, 2, -2))
+            value = TooltipDescription(description, string.sub(text, 2, -2))
             if value then value = '"' .. value .. '"' end
         end
         Display(line, text, value)
@@ -371,14 +409,14 @@ local function TooltipText(tooltip)
         local name, link = tooltip:GetItem()
         if type(link) == "string" then
             local _, _, id = string.find(link, "item:(%d+)")
-            TooltipLabel(tooltip, addon.items[tonumber(id)], name, true)
+            TooltipLabel(tooltip, addon.items[tonumber(id)], name, "description")
             return
         end
     end
     if tooltip.GetSpell then
         local name, _, id = tooltip:GetSpell()
         if name then
-            TooltipLabel(tooltip, addon.spells[tonumber(id)], name, false)
+            TooltipLabel(tooltip, addon.spells[tonumber(id)], name, "description")
             return
         end
     end
@@ -388,7 +426,20 @@ local function TooltipText(tooltip)
         unit = token
     elseif vanilla then unit = "mouseover" end
     local row, name = UnitRow(unit)
-    TooltipLabel(tooltip, row, name, true)
+    TooltipLabel(tooltip, row, name, "description")
+end
+
+if addon.interface == 50400 and GameTooltip and hooksecurefunc then
+    local function HookAura(method, query)
+        if not GameTooltip[method] or not query then return end
+        hooksecurefunc(GameTooltip, method, function(tooltip, unit, index, filter)
+            local name, _, _, _, _, _, _, _, _, _, id = query(unit, index, filter)
+            TooltipLabel(tooltip, addon.spells[tonumber(id)], name, "aura")
+        end)
+    end
+    HookAura("SetUnitAura", UnitAura)
+    HookAura("SetUnitBuff", UnitBuff)
+    HookAura("SetUnitDebuff", UnitDebuff)
 end
 
 local function UpdateText()

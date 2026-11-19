@@ -13,7 +13,7 @@ from package import FONT, ROOT, TARGETS, VERSION
 
 
 def check_addon(target, folder, path, old_lua):
-    _, _, interface, build_number, _ = TARGETS[target]
+    _, _, interface, build_number, _, version = TARGETS[target]
     with ZipFile(path) as archive:
         assert archive.testzip() is None
         names = archive.namelist()
@@ -21,13 +21,17 @@ def check_addon(target, folder, path, old_lua):
         assert {PurePosixPath(name).parts[0] for name in names} == {folder}
         toc = archive.read(f"{folder}/{folder}.toc").decode("utf-8").splitlines()
         assert toc[0] == f"## Interface: {interface}"
+        assert f"## Version: {version}" in toc
         loads = [line.replace("\\", "/") for line in toc if line and not line.startswith("#")]
         assert loads[0] == "Config.lua" and loads[-1] == "Core.lua"
         assert len(loads) == len(set(loads))
         assert {name for name in names if name.endswith(".lua")} == {f"{folder}/{load}" for load in loads}
         assert archive.read(f"{folder}/Fonts/{FONT}") == (ROOT / "assets" / FONT).read_bytes()
         counts = json.loads(archive.read(f"{folder}/coverage.json"))
-        bootstrap = f'TEST_INTERFACE = {interface}\nTEST_BUILD = "{build_number}"\nEXPECTED_QUESTS = {counts["quests"]}\n'
+        bootstrap = (
+            f'TEST_INTERFACE = {interface}\nTEST_BUILD = "{build_number}"\n'
+            f'EXPECTED_QUESTS = {counts["quests"]}\nEXPECTED_SPELLS = {counts["spells"]}\n'
+        )
         fixtures = (ROOT / "tests/game_ui.lua").read_text(encoding="utf-8")
         lua_files = [archive.read(f"{folder}/{load}").decode("utf-8") for load in loads]
         if old_lua and target == "turtle":
@@ -51,13 +55,18 @@ def check_addon(target, folder, path, old_lua):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("target", choices=(*TARGETS, "all"), default="all", nargs="?")
     parser.add_argument("--archive-dir", type=Path, default=ROOT / "dist")
     parser.add_argument("--lua50", type=Path)
     args = parser.parse_args()
-    for target, (short, _, _, _, client) in TARGETS.items():
+    targets = TARGETS if args.target == "all" else [args.target]
+    for target in targets:
+        short, _, _, _, client, version = TARGETS[target]
         folder = f"WoWKorean_{short}"
-        check_addon(target, folder, args.archive_dir / f"{folder}_{client}_v{VERSION}.zip",
+        check_addon(target, folder, args.archive_dir / f"{folder}_{client}_v{version}.zip",
                     args.lua50.resolve() if args.lua50 else None)
+    if "coa" not in targets:
+        return
     patch = args.archive_dir / f"WoWKorean_CoA_FontPatch_v{VERSION}.zip"
     with ZipFile(patch) as archive:
         assert archive.testzip() is None

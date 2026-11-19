@@ -3,6 +3,8 @@
   "quests": 17821,
   "units": 56275,
   "items": 71342,
-  "spells": 0,
-  "quest_fields": 73023
+  "spells": 92910,
+  "quest_fields": 73023,
+  "spell_descriptions": 43534,
+  "spell_auras": 22901
 }

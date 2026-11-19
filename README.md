@@ -5,7 +5,7 @@
 | 클라이언트 | 배포 | 설치 안내 |
 | --- | --- | --- |
 | 리치왕 3.3.5a · 빌드 12340 · koKR | [v0.4.4 게임 테스트판](https://github.com/hilch1981-prog/WoWKorean/releases/tag/v0.4.4) | ZIP의 README |
-| 판다리아 5.4.8 · 빌드 18414 | [v0.1.0 테스트판](https://github.com/hilch1981-prog/WoWKorean/releases/tag/mop-5.4.8-v0.1.0) | [판다리아](versions/mop/README.md) |
+| 판다리아 5.4.8 · 빌드 18414 | [v0.1.1 테스트판](https://github.com/hilch1981-prog/WoWKorean/releases/tag/mop-5.4.8-v0.1.1) | [판다리아](versions/mop/README.md) |
 | 터틀 와우 1.18.1 · 1.12 기반 | [v0.1.0 테스트판](https://github.com/hilch1981-prog/WoWKorean/releases/tag/turtle-1.18.1-v0.1.0) | [터틀 와우](versions/turtle/README.md) |
 | Conquest of AzerothCore · 3.3.5a 계열 | [v0.1.0 테스트판](https://github.com/hilch1981-prog/WoWKorean/releases/tag/coa-3.3.5a-v0.1.0) | [CoA 패치 및 설치 순서](versions/coa/README.md) |
 

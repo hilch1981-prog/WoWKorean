@@ -3,6 +3,7 @@
 import argparse
 import json
 import re
+import struct
 from collections import defaultdict
 from pathlib import Path
 
@@ -22,6 +23,10 @@ ESCAPES = {"0": "\0", "b": "\b", "n": "\n", "r": "\r", "t": "\t", "Z": "\x1a"}
 ASCII_LOWER = str.maketrans(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ’‘“”\u00a0", "abcdefghijklmnopqrstuvwxyz''\"\" "
 )
+SPELL_TOKEN = re.compile(r"(\$(?:\d*[sSmMoOwWhHtTaArRdD]\d*|<[a-zA-Z0-9_]+>))")
+SPELL_MARKER = re.compile(r"\x1f(\d+)\x1f")
+LUA_PATTERN_CHAR = re.compile(r"([%().+*?\[\]^$-])")
+SPELL_FIELDS = ("title", "rank", "description", "aura")
 
 
 def tuples(payload):
@@ -189,6 +194,85 @@ def pair_rows(reference, locale):
     return data
 
 
+def read_mop_spells(path):
+    header, record = struct.Struct("<4s4I"), struct.Struct("<25I")
+    file = path.read_bytes()
+    magic, count, fields, size, string_size = header.unpack_from(file)
+    string_start = header.size + count * size
+    if (magic, fields, size) != (b"WDBC", 25, record.size) or string_start + string_size != len(file):
+        raise ValueError(f"{path}: expected a 25-column MoP Spell.dbc")
+
+    def read_string(offset):
+        if offset >= string_size:
+            raise ValueError(f"{path}: invalid string offset {offset}")
+        start = string_start + offset
+        return file[start:file.index(0, start)].decode("utf-8")
+
+    rows = {}
+    for row in record.iter_unpack(memoryview(file)[header.size:string_start]):
+        entry = row[0]
+        if entry in rows:
+            raise ValueError(f"{path}: duplicate spell ID {entry}")
+        rows[entry] = (row[5:], dict(zip(SPELL_FIELDS, map(read_string, row[1:5]))))
+    return rows
+
+
+def spell_tooltip_pair(original, korean):
+    original = re.sub(r"\$[bB]", "\n", original)
+    korean = re.sub(r"\$[bB]", "\n", korean).replace("\r\n", "\n")
+    source, translated = SPELL_TOKEN.split(original), SPELL_TOKEN.split(korean)
+    if any("$" in part or "\x1f" in part for part in source[::2] + translated[::2]):
+        return None
+    source_tokens, translation_tokens = source[1::2], translated[1::2]
+    if not source_tokens and not translation_tokens:
+        return guard(original), korean
+    if len(source_tokens) > 12 or set(source_tokens) != set(translation_tokens):
+        return None
+
+    # Capture rendered values in English order, then move them to the Korean
+    # template's positions. Unsupported DBC expressions stay in the client UI.
+    first_slot = {}
+    durations, repeated = [], []
+    for slot, token in enumerate(source_tokens, 1):
+        repeated.append(first_slot.setdefault(token, slot))
+        durations.append(int(token.lower().endswith("d") and not token.endswith(">")))
+        source[2 * slot - 1] = f"\x1f{slot}\x1f"
+    pattern = LUA_PATTERN_CHAR.sub(r"%\1", normalize("".join(source)))
+    pattern = SPELL_MARKER.sub(
+        lambda match: (
+            "([%+%-]?%d[%d,.]* %a+)" if durations[int(match[1]) - 1]
+            else "([%+%-]?%d[%d,.%+%-to –]*)"
+        ),
+        pattern,
+    )
+    for slot, token in enumerate(translation_tokens):
+        translated[2 * slot + 1] = f"\x1f{first_slot[token]}\x1f"
+    return "^" + pattern + "$", "".join(translated), tuple(durations), tuple(repeated)
+
+
+def mop_spell_pairs(english_path, korean_path):
+    english = read_mop_spells(english_path)
+    korean = read_mop_spells(korean_path)
+    if english.keys() != korean.keys():
+        raise ValueError("MoP Spell.dbc locales contain different spell IDs")
+    pairs = {}
+    for entry, (metadata, source) in english.items():
+        localized_metadata, localized = korean[entry]
+        if metadata != localized_metadata:
+            raise ValueError(f"MoP Spell.dbc locales have different data for spell ID {entry}")
+        if not source["title"] or HANGUL.search(source["title"]) or not HANGUL.search(localized["title"]):
+            continue
+        pairs[entry] = {"title": (guard(source["title"]), localized["title"])}
+        for field in ("description", "aura"):
+            if source[field] and HANGUL.search(localized[field]):
+                pair = spell_tooltip_pair(source[field], localized[field])
+                if pair:
+                    pairs[entry][field] = pair
+    if not pairs or 133 not in pairs or "description" not in pairs[133]:
+        raise ValueError("Missing MoP Korean spell data or expected Fireball tooltip")
+    return pairs
+
+
 def wrath_seed(folder):
     from lupa.lua51 import LuaRuntime
 
@@ -241,8 +325,10 @@ def coa(folder, curated, reference):
 
 def literal(text):
     # Lua 5.0 recognizes decimal byte escapes, including for control bytes.
+    if isinstance(text, (int, float)):
+        return str(text)
     if not isinstance(text, str):
-        return "{" + ",".join(map(str, text)) + "}"
+        return "{" + ",".join(map(literal, text)) + "}"
     escaped = "".join(
         "\\" + char if char in '\\"' else f"\\{ord(char):03}" if ord(char) < 32 else char
         for char in text
@@ -268,7 +354,11 @@ def write_data(data, output, target):
                 file.write(f"local rows = addon.{kind}\n")
                 for entry, pairs in rows[offset:offset + 5000]:
                     fields = []
-                    for field, (original, translated) in pairs.items():
+                    for field, pair in pairs.items():
+                        if kind == "spells" and target == "mop":
+                            fields.append(f"{field}={literal(pair)}")
+                            continue
+                        original, translated = pair
                         if kind == "quests" and field == "title":
                             original = original.removeprefix("[DEPRECATED] ")
                         fields.append(f"{field}={{{literal(guard(original))},{literal(translated)}}}")
@@ -276,6 +366,9 @@ def write_data(data, output, target):
     if any(not counts[kind] for kind in ("quests", "units", "items")):
         raise ValueError(f"Missing translation dictionary: {counts}")
     counts["quest_fields"] = sum(len(fields) for fields in data["quests"].values())
+    if target == "mop" and data["spells"]:
+        counts["spell_descriptions"] = sum("description" in fields for fields in data["spells"].values())
+        counts["spell_auras"] = sum("aura" in fields for fields in data["spells"].values())
     (output / "coverage.json").write_text(
         json.dumps({"target": target, **counts}, indent=2) + "\n", encoding="utf-8"
     )
@@ -288,6 +381,8 @@ def main():
     parser.add_argument("reference", type=Path, help="English world SQL, Tortoise sql/base, or extracted WotLK add-on")
     parser.add_argument("locale", type=Path, help="Korean DB export directory or CoA curated JSON")
     parser.add_argument("--coa-sql", type=Path, help="Directory containing the pinned CoA SQL files")
+    parser.add_argument("--mop-spell-dbc", nargs=2, type=Path, metavar=("ENGLISH", "KOREAN"),
+                        help="MoP 5.4.8 English and koKR Spell.dbc files")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.target == "coa":
@@ -296,6 +391,10 @@ def main():
         data = coa(args.reference, args.locale, args.coa_sql)
     else:
         data = pair_rows(*{"mop": mop, "turtle": turtle}[args.target](args.reference, args.locale))
+    if args.target == "mop":
+        if not args.mop_spell_dbc:
+            parser.error("MoP generation requires both Spell.dbc locales via --mop-spell-dbc")
+        data["spells"] = mop_spell_pairs(*args.mop_spell_dbc)
     write_data(data, args.output or ROOT / "versions" / args.target, args.target)
 
 
